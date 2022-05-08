@@ -82,9 +82,14 @@ function W.write_line()
 	vim.api.nvim_buf_set_option(W.buff, "modifiable", true)
 
 	local nodes = t.get_lines()
+	if nodes == nil then
+		return
+	end
+
 	local fmt_lines = {}
 	local cwd = vim.fn.getcwd()
 	local hl = {}
+
 
 	for _, node in ipairs(nodes) do
 		local fold_icon = c.icon.fold
@@ -168,12 +173,14 @@ function W.open()
 end
 
 function W.move()
+	local line = vim.api.nvim_exec("echo line('.')", true)
 	if W.position == "bottom_right" then
 		W.position = "center"
 	else
 		W.position = "bottom_right"
 	end
 	W.create_window()
+	vim.cmd("execute  \"normal! " .. line .. "G\"")
 end
 
 return W

@@ -1,3 +1,5 @@
+local notify = require("xxx.notify")
+
 local T = {
 	root = nil,
 	lines = {},
@@ -28,6 +30,13 @@ function T.get_lines()
 	T.lines = {}
 	T.nodes = {}
 
+	if T.root == nil then
+		notify('Empty data: Call outgoing or incoming first.', vim.log.levels.ERROR, {
+			title = "Call focus error"
+		})
+		return
+	end
+
 	T.front(T.root, 0)
 	return T.lines
 end
@@ -42,7 +51,7 @@ function T.front(node, level)
 	end
 
 	if #node.children > 0 then
-		table.sort(node.children,function(a,b) return a.name < b.name end)
+		table.sort(node.children, function(a, b) return a.name < b.name end)
 	end
 
 	for _, child in ipairs(node.children) do

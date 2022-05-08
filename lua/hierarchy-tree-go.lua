@@ -3,14 +3,8 @@ local H = {
 }
 
 local json = require("xxx.json")
+local notify = require("xxx.notify")
 
-local has_notify, notify = pcall(require, "notify")
-
-if not has_notify then
-	notify = vim.notify
-else
-	notify = notify.notify
-end
 
 local t = require("xxx.tree")
 local w = require("xxx.window")
