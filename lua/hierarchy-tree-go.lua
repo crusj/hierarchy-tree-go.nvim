@@ -3,25 +3,49 @@ local H = {
 }
 
 local json = require("xxx.json")
-local notify = require("notify")
+
+local has_notify, notify = pcall(require, "notify")
+
+if not has_notify then
+	notify = vim.notify
+else
+	notify = notify.notify
+end
+
 local t = require("xxx.tree")
 local w = require("xxx.window")
+local config = require("xxx.config")
 
-function H.setup()
+local c
+
+function H.setup(user_config)
+	config.setup(user_config)
+	c = config.get_data()
+
 	w.setup()
 	H.global_keymap()
 end
 
 function H.global_keymap()
-	vim.keymap.set("n", "<space>fi", "<cmd>lua require\"hierarchy-tree-go\".incoming()<cr>", { silent = true })
-	vim.keymap.set("n", "<space>fo", "<cmd>lua require\"hierarchy-tree-go\".focus()<cr>", { silent = true })
+	vim.keymap.set("n", c.keymap.incoming, "<cmd>lua require\"hierarchy-tree-go\".incoming()<cr>", { silent = true })
+	vim.keymap.set("n", c.keymap.focus, "<cmd>lua require\"hierarchy-tree-go\".focus()<cr>", { silent = true })
+	vim.keymap.set("n", c.keymap.outgoing, "<cmd>lua require\"hierarchy-tree-go\".outgoing()<cr>", { silent = true })
+	vim.keymap.set("n", c.keymap.open, "<cmd>lua require\"hierarchy-tree-go\".open()<cr>", { silent = true })
+	vim.keymap.set("n", c.keymap.close, "<cmd>lua require\"hierarchy-tree-go\".close()<cr>", { silent = true })
 end
 
 function H.incoming()
+	if not H.check_filetype() then
+		notify("Filetype error", vim.log.levels.ERROR, {
+			title = "Call incoming"
+		})
+		return
+	end
+
 	local params = vim.lsp.util.make_position_params()
 
-	H.get_children(params, function(result)
-		local root = t.create_node(vim.fn.expand("<cword>"), 12, params.textDocument.uri, {
+	H.get_children(params, "incoming", function(result)
+		local root = t.create_node(vim.fn.expand("<cword>"), 12, params.textDocument.uri, params.textDocument.uri, {
 			start = {
 				line = params.position.line,
 				character = params.position.character
@@ -31,19 +55,52 @@ function H.incoming()
 
 		root.children = {}
 		for _, item in ipairs(result) do
-			local child = t.create_node(item.from.name, item.from.kind, item.from.uri, item.from.range, item.fromRanges)
+			local child = t.create_node(item.from.name, item.from.kind, item.from.uri, item.from.detail, item.from.range, item.fromRanges)
 			table.insert(root.children, child)
 		end
 
-		t.set_root(root)
+		t.set_root(root, "incoming")
 		w.create_window()
 	end)
 end
 
-function H.get_children(params, callback)
+function H.check_filetype()
+	return vim.api.nvim_buf_get_option(0, "filetype") == "go"
+end
+
+function H.outgoing()
+	if not H.check_filetype() then
+		notify("Filetype error", vim.log.levels.ERROR, {
+			title = "Call outgoing"
+		})
+		return
+	end
+
+	local params = vim.lsp.util.make_position_params()
+	H.get_children(params, "outgoing", function(result)
+		local root = t.create_node(vim.fn.expand("<cword>"), 12, params.textDocument.uri, params.textDocument.uri, {
+			start = {
+				line = params.position.line,
+				character = params.position.character
+			}
+		})
+		root.status = "open"
+
+		root.children = {}
+		for _, item in ipairs(result) do
+			local child = t.create_node(item.to.name, item.to.kind, item.to.uri, item.to.detail, item.to.range, item.fromRanges)
+			table.insert(root.children, child)
+		end
+
+		t.set_root(root, "outgoing")
+		w.create_window()
+	end)
+end
+
+function H.get_children(params, direction, callback)
 	vim.lsp.buf_request(nil, "textDocument/prepareCallHierarchy", params, function(err, result)
 		if err then
-			notify.notify("prepare error" .. json.encode(err), "error", {
+			notify.notify("Prepare error" .. json.encode(err), vim.log.levels.ERROR, {
 				title = "Hierarchy prepare"
 			})
 			return
@@ -51,7 +108,15 @@ function H.get_children(params, callback)
 
 		local call_hierarchy_item = H.pick_call_hierarchy_item(result)
 
-		H.call_hierarchy({}, "callHierarchy/incomingCalls", "LSP Incoming Calls", "from", call_hierarchy_item, callback)
+		local method = "callHierarchy/incomingCalls"
+		local title = "LSP Incoming Calls"
+
+		if direction == "outgoing" then
+			method = "callHierarchy/outgoingCalls"
+			title = "LSP Outgoing Calls"
+		end
+
+		H.call_hierarchy({}, method, title, call_hierarchy_item, callback)
 	end)
 end
 
@@ -84,11 +149,11 @@ function H.pick_call_hierarchy_item(call_hierarchy_items)
 	return choice
 end
 
-function H.call_hierarchy(opts, method, title, direction, item, callback)
+function H.call_hierarchy(opts, method, title, item, callback)
 	vim.lsp.buf_request(opts.bufnr, method, { item = item }, function(err, result)
 		if err then
-			notify.notify(json.encode(err), "error", {
-				title = "Hierarchy incoming"
+			notify(json.encode(err), vim.log.levels.ERROR, {
+				title = title
 			})
 			return
 		end
@@ -107,7 +172,7 @@ function H.attach_gopls()
 		end
 
 		if H.client == nil then
-			notify.notify("no gopls client", "error", {})
+			notify("no gopls client", vim.log.levels.ERROR, {})
 			return false
 		end
 
@@ -150,11 +215,17 @@ function H.expand()
 		character = node.range.start.character
 	})
 
-	H.get_children(params, function(result)
+	H.get_children(params, t.direction, function(result)
 		node.status = "open"
-		if #result > 0 then -- no incoming
+		if result ~= nil and #result > 0 then -- no incoming
 			for _, item in ipairs(result) do
-				local child = t.create_node(item.from.name, item.from.kind, item.from.uri, item.from.range, item.fromRanges)
+				local child
+				if t.direction == "outgoing" then
+					child = t.create_node(item.to.name, item.to.kind, item.to.uri, item.to.detail, item.to.range, item.fromRanges)
+				else
+					child = t.create_node(item.from.name, item.from.kind, item.from.uri, item.from.detail, item.from.range, item.fromRanges)
+				end
+
 				table.insert(node.children, child)
 			end
 		end
@@ -164,6 +235,14 @@ function H.expand()
 	end)
 end
 
+function H.close()
+	w.close()
+end
+
+function H.open()
+	w.open()
+end
+
 function H.jump()
 	local line = vim.api.nvim_exec("echo line('.')", true)
 	local node = t.nodes[tonumber(line)]
@@ -171,7 +250,11 @@ function H.jump()
 end
 
 function H.focus()
-	w.foucus()
+	w.focus()
+end
+
+function H.move()
+	w.move()
 end
 
 return H

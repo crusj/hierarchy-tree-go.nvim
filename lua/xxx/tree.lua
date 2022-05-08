@@ -1,18 +1,22 @@
 local T = {
 	root = nil,
 	lines = {},
-	nodes = {}
+	nodes = {},
+
+	direction = nil
 }
 
-function T.set_root(root)
+function T.set_root(root, direction)
 	T.root = root
+	T.direction = direction
 end
 
-function T.create_node(name, kind, uri, range, from_ranges)
+function T.create_node(name, kind, uri, detail, range, from_ranges)
 	return {
 		name = name,
 		kind = kind,
 		uri = uri,
+		detail = detail,
 		status = "close",
 		range = range,
 		from_ranges = from_ranges,
@@ -35,6 +39,10 @@ function T.front(node, level)
 
 	if node.status == "fold" then
 		return
+	end
+
+	if #node.children > 0 then
+		table.sort(node.children,function(a,b) return a.name < b.name end)
 	end
 
 	for _, child in ipairs(node.children) do
