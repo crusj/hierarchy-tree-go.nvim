@@ -25,7 +25,7 @@ Hierarchy ui tree for go
 
 ### Requirement
 
-**Neovim0.7**
+**Neovim >= 0.7**
 
 **[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig)**
 

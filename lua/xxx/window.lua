@@ -33,9 +33,12 @@ function W.create_window()
 	if W.buff == nil then
 		if W.buff == nil then
 			W.buff = vim.api.nvim_create_buf(false, true)
-			vim.api.nvim_buf_set_keymap(W.buff, "n", c.keymap.expand, ":lua require'hierarchy-tree-go'.expand()<cr>", { silent = true })
-			vim.api.nvim_buf_set_keymap(W.buff, "n", c.keymap.jump, ":lua require'hierarchy-tree-go'.jump()<cr>", { silent = true })
-			vim.api.nvim_buf_set_keymap(W.buff, "n", c.keymap.move, ":lua require'hierarchy-tree-go'.move()<cr>", { silent = true })
+			vim.api.nvim_buf_set_keymap(W.buff, "n", c.keymap.expand, ":lua require'hierarchy-tree-go'.expand()<cr>",
+				{ silent = true })
+			vim.api.nvim_buf_set_keymap(W.buff, "n", c.keymap.jump, ":lua require'hierarchy-tree-go'.jump()<cr>",
+				{ silent = true })
+			vim.api.nvim_buf_set_keymap(W.buff, "n", c.keymap.move, ":lua require'hierarchy-tree-go'.move()<cr>",
+				{ silent = true })
 
 			vim.api.nvim_buf_set_option(W.buff, "filetype", "hierarchy-tree-go")
 			vim.api.nvim_buf_set_name(W.buff, "HIERARCHY-TREE-GO")
@@ -135,9 +138,21 @@ end
 function W.jump(node)
 	local filename = string.sub(node.uri, 8)
 	vim.api.nvim_set_current_win(W.bufnrw)
-	vim.cmd("e " .. filename)
-	vim.cmd("execute  \"normal! " .. (node.range.start.line + 1) .. "G\"")
-	vim.cmd("execute  \"normal! zz\"")
+
+	local fn = function(cmd)
+		vim.cmd(cmd .. filename)
+		vim.cmd("execute  \"normal! " .. (node.range.start.line + 1) .. "G\"")
+		vim.cmd("execute  \"normal! zz\"")
+	end
+
+	for _, id in pairs(vim.api.nvim_list_wins()) do
+		local buf = vim.api.nvim_win_get_buf(id)
+		if vim.loop.fs_stat(vim.api.nvim_buf_get_name(buf)) then
+			vim.api.nvim_set_current_win(id)
+			fn("e ")
+			return
+		end
+	end
 end
 
 function W.focus()
