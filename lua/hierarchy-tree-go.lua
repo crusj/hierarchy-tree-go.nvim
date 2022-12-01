@@ -180,7 +180,7 @@ function H.attach_gopls()
 end
 
 function H.expand()
-	local line = vim.api.nvim_exec("echo line('.')", true)
+    local line = vim.fn.line(".")
 	local node = t.nodes[tonumber(line)]
 
 	if node.status == "open" then
